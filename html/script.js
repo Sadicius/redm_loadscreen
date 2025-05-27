@@ -51,19 +51,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeBgDiv = bgImage1;
     let inactiveBgDiv = bgImage2;
     let bgInterval = null;
-    // let loadingAt100Percent = false;
-    // let canCloseLoadingFlag = false;
     const BG_CHANGE_INTERVAL = 10000; // ms
-
-    /* function trySendLoadingComplete() {
-        if (loadingAt100Percent && canCloseLoadingFlag) {
-            fetch(`https://${GetParentResourceName()}/loadingComplete`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({})
-            });
-        }
-    } */
+    let isLoadFractionComplete = false;
+    let hasFinishedDetailsLog = false;
 
     // --- Background Image Slideshow Functions ---
     function preloadImage(url) {
@@ -351,7 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function onPlayerError(event) {
-        console.error("YouTube Player Error:", event.data);
+        // console.error("YouTube Player Error:", event.data);
         musicReady = false;
         if(musicControls) musicControls.style.display = 'none';
     }
@@ -423,11 +413,6 @@ document.addEventListener('DOMContentLoaded', () => {
         let totalInitFuncCount = 0;
 
         switch (data.eventName) {
-            /* case 'canCloseLoading':
-                    // Aquí activamos una bandera para que se pueda cerrar
-                    canCloseLoadingFlag = true;
-                    trySendLoadingComplete();
-                break; */
             case 'loadProgress':
                 if (loadingBar && data.loadFraction !== undefined) {
                     const percentage = Math.round(data.loadFraction * 100);
@@ -439,14 +424,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     else if (percentage < 30) statusMsg = "Requesting assets...";
                     else if (percentage < 70) statusMsg = "Loading game data...";
                     else if (percentage < 95) statusMsg = "Initializing scripts...";
-                    else if (percentage < 99) statusMsg = "Finalizing setup..."; 
-                    else statusMsg = "Finalizing...";
+                    else if (percentage < 99) statusMsg = "Finalizing scripts...";
+                    else statusMsg = "Finalizing  setup...";
                     if(statusText) statusText.textContent = statusMsg;
-                    // add exit and load multicharacter
-                    /* if (percentage === 100) {
-                        loadingAt100Percent = true;
-                        trySendLoadingComplete();
-                    } */
+                    if (data.eventName === 'SHUTDOWN_LOADING_SCREEN') {
+                        isLoadFractionComplete = true;
+                    }
                 }
                 break;
             case 'onLogLine':
@@ -479,10 +462,33 @@ document.addEventListener('DOMContentLoaded', () => {
                  if(logText) logText.innerText = `Invoking: ${data.name}`; // Simplified log
                 break;
             case 'initFunctionInvoked':
+                if (logText && data.name) logText.innerText = `Invoked: ${data.name}`;
+                    if (data.name === 'redm-ipls') {
+                        hasFinishedDetailsLog = true;
+                    }
+
+                    if (isLoadFractionComplete && hasFinishedDetailsLog) {
+                        const loadingScreen = document.getElementById('loading-screen');
+                        if (loadingScreen) {
+                            loadingScreen.style.opacity = 0;
+                            setTimeout(() => {
+                                loadingScreen.style.display = 'none';
+                            }, 3000);
+                        }
+
+                        try {
+                            fetch(`https://${GetParentResourceName()}/loadingComplete`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({})
+                            },1000);
+                        } catch (e) {
+                            console.warn("No se pudo enviar 'loadingComplete':", e);
+                        }
+                    }
                 break;
             case 'endInitFunction':
                 if(logText) logText.innerText = `Finished invoking ${data.type} functions.`;
-                    
                 break;
             default:
                 break;
